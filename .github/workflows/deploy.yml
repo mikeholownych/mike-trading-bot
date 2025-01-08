@@ -12,7 +12,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      S3_BUCKET: your-s3-bucket-name
+      S3_BUCKET: mike-trading-bot-artifacts
       LAMBDA_FUNCTION_NAME: MikeTradingBotFunction
       SAGEMAKER_ROLE: arn:aws:iam::980705396664:role/SageMakerExecutionRole
 
