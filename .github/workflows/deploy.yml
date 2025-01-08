@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      LAMBDA_FUNCTION_NAME: MikeTradingBotFunction
       AWS_REGION: us-east-1
+      LAMBDA_FUNCTION_NAME: MikeTradingBotFunction
 
     steps:
     # Step 1: Checkout code
@@ -37,10 +37,9 @@ jobs:
         zip -r ../lambda-deployment-package.zip ./*
         cd ..
 
-    # Step 5: Validate zip file
-    - name: Validate zip file contents
-      run: |
-        unzip -l lambda-deployment-package.zip
+    # Step 5: Debug environment
+    - name: Debug environment
+      run: env
 
     # Step 6: Configure AWS credentials
     - name: Configure AWS credentials
@@ -48,7 +47,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: $AWS_REGION
+        aws-region: ${{ env.AWS_REGION }}
 
     # Step 7: Deploy Lambda function using AWS CLI
     - name: Deploy Lambda function
