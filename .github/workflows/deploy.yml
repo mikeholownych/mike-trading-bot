@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      LAMBDA_FUNCTION_NAME: TradingBotFunction
+      LAMBDA_FUNCTION_NAME: MikeTradingBotFunction
 
     steps:
     # Step 1: Checkout code
