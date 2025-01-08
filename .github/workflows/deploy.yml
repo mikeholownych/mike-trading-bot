@@ -6,33 +6,29 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy
+  deploy:
+    name: Build and Deploy to AWS
     runs-on: ubuntu-latest
 
     env:
       AWS_REGION: us-east-1
-      S3_BUCKET: mike-trading-bot-artifacts
-      LAMBDA_FUNCTION_NAME: MikeTradingBotFunction
-      SAGEMAKER_ROLE: arn:aws:iam::980705396664:role/SageMakerExecutionRole
+      LAMBDA_FUNCTION_NAME: TradingBotFunction
 
     steps:
-    # Step 1: Checkout the code
+    # Step 1: Checkout code
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Step 2: Set up Python
+    # Step 2: Set up Python environment
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: 3.9
 
-    # Step 3: Install dependencies for Lambda
-    - name: Install Lambda dependencies
+    # Step 3: Install dependencies
+    - name: Install dependencies
       run: |
-        cd lambda
-        pip install -r requirements.txt -t .
-        cd ..
+        pip install -r lambda/requirements.txt -t ./lambda/
 
     # Step 4: Package Lambda function
     - name: Package Lambda function
@@ -41,21 +37,17 @@ jobs:
         zip -r ../lambda-deployment-package.zip .
         cd ..
 
-    # Step 5: Deploy Lambda function
-    - name: Deploy Lambda function
-      uses: aws-actions/aws-lambda-deploy@v1
+    # Step 5: Configure AWS credentials
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v3
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        region: $AWS_REGION
-        function-name: $LAMBDA_FUNCTION_NAME
-        zip-file: lambda-deployment-package.zip
+        aws-region: $AWS_REGION
 
-    # Step 6: Trigger SageMaker training
-    - name: Trigger SageMaker training
+    # Step 6: Deploy Lambda function using AWS CLI
+    - name: Deploy Lambda function
       run: |
-        pip install boto3
-        python sagemaker/train.py
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws lambda update-function-code \
+          --function-name $LAMBDA_FUNCTION_NAME \
+          --zip-file fileb://lambda-deployment-package.zip
