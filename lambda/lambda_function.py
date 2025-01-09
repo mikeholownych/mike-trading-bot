@@ -1,4 +1,8 @@
 import json
+import os
+import boto3
+
+logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
     # Log the incoming event
