@@ -1,76 +1,85 @@
 import argparse
 import os
 import pandas as pd
+import joblib
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
-import joblib
 import json
 
 
 def load_data(file_path):
     """
-    Load training data from the specified path.
-    Supports JSON Lines format.
+    Load training data from a JSONL file.
     """
-    print(f"Loading data from {file_path}")
+    print(f"Loading data from {file_path}...")
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
     if file_path.endswith(".jsonl"):
         data = pd.read_json(file_path, lines=True)
     else:
-        raise ValueError("Unsupported file format. Use JSONL.")
+        raise ValueError("Unsupported file format. Expected JSONL.")
+    
+    print(f"Data loaded successfully. Shape: {data.shape}")
     return data
 
 
 def preprocess_data(data):
     """
     Preprocess the data for training.
+    Maps 'signal' to numeric 'target' and ensures 'target' is a list for compatibility.
     """
     print("Preprocessing data...")
 
-    # Map signal to numeric values
+    # Map 'signal' to numeric values if 'target' is not already present
     target_map = {"LONG": 1, "SHORT": -1, "HOLD": 0}
-    if "signal" not in data.columns:
-        raise ValueError("The 'signal' column is missing from the dataset.")
-    
-    data["signal"] = data["signal"].map(target_map)
+    if "signal" in data.columns and "target" not in data.columns:
+        data["target"] = data["signal"].map(target_map)
+
+    if "target" not in data.columns:
+        raise ValueError("The 'target' field is missing from the dataset.")
+
+    # Ensure 'target' is a list for compatibility
+    data["target"] = data["target"].apply(lambda x: [x] if isinstance(x, int) else x)
 
     # Drop irrelevant columns
-    X = data.drop(columns=["timestamp", "signal"])
+    X = data.drop(columns=["timestamp", "signal", "target"], errors="ignore")
     y = data["target"]
 
-    print(f"Data preprocessing complete. Features: {X.columns.tolist()}")
+    print(f"Preprocessing complete. Features: {X.columns.tolist()}, Target shape: {len(y)}")
     return X, y
 
 
 def train_model(X_train, y_train):
     """
-    Train a Random Forest classifier on the training data.
+    Train a Random Forest model on the training data.
     """
-    print("Training model...")
+    print("Training the Random Forest model...")
     model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
+    model.fit(X_train, [t[0] for t in y_train])  # Extract numeric values from the list
     print("Model training complete.")
     return model
 
 
 def evaluate_model(model, X_val, y_val):
     """
-    Evaluate the trained model on validation data.
+    Evaluate the model and print metrics.
     """
-    print("Evaluating model...")
+    print("Evaluating the model...")
     y_pred = model.predict(X_val)
-    accuracy = accuracy_score(y_val, y_pred)
-    print("Model evaluation complete.")
-    print("Accuracy:", accuracy)
+    y_val_numeric = [t[0] for t in y_val]  # Extract numeric values from the list
+    accuracy = accuracy_score(y_val_numeric, y_pred)
+    print(f"Accuracy: {accuracy:.2f}")
     print("Classification Report:")
-    print(classification_report(y_val, y_pred))
+    print(classification_report(y_val_numeric, y_pred))
 
 
 def save_model(model, model_dir):
     """
     Save the trained model to the specified directory.
     """
-    print(f"Saving model to {model_dir}")
+    print(f"Saving model to {model_dir}...")
     os.makedirs(model_dir, exist_ok=True)
     model_path = os.path.join(model_dir, "model.joblib")
     joblib.dump(model, model_path)
@@ -79,19 +88,18 @@ def save_model(model, model_dir):
 
 def main():
     """
-    Main function for training the model.
+    Main entry point for the training script.
     """
-    # Parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", type=str, required=True, help="Path to the training data")
     parser.add_argument("--model_dir", type=str, required=True, help="Path to save the trained model")
     args = parser.parse_args()
 
-    # Load data
+    # Define the training data path
     train_data_path = os.path.join("/opt/ml/input/data/train", args.train)
+    
+    # Load and preprocess data
     data = load_data(train_data_path)
-
-    # Preprocess data
     X, y = preprocess_data(data)
 
     # Split data into training and validation sets
