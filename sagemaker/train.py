@@ -36,7 +36,7 @@ def preprocess_data(data):
 
     # Drop irrelevant columns
     X = data.drop(columns=["timestamp", "signal"])
-    y = data["signal"]
+    y = data["target"]
 
     print(f"Data preprocessing complete. Features: {X.columns.tolist()}")
     return X, y
