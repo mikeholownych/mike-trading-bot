@@ -1,85 +1,111 @@
 import argparse
 import os
 import pandas as pd
-import json
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 import joblib
+import json
 
-def load_data(input_path):
+
+def load_data(file_path):
     """
-    Load data from S3 or local directory.
-    Supports JSONL or Parquet format.
+    Load training data from the specified path.
+    Supports JSON Lines format.
     """
-    if input_path.endswith(".jsonl"):
-        print(f"Loading JSONL data from {input_path}")
-        return pd.read_json(input_path, lines=True)
-    elif input_path.endswith(".parquet"):
-        print(f"Loading Parquet data from {input_path}")
-        return pd.read_parquet(input_path)
+    print(f"Loading data from {file_path}")
+    if file_path.endswith(".jsonl"):
+        data = pd.read_json(file_path, lines=True)
     else:
-        raise ValueError("Unsupported file format. Use JSONL or Parquet.")
+        raise ValueError("Unsupported file format. Use JSONL.")
+    return data
 
-def preprocess_data(df):
+
+def preprocess_data(data):
     """
-    Preprocess the data by encoding categorical variables and splitting features/labels.
+    Preprocess the data for training.
     """
-    # Encoding target labels
+    print("Preprocessing data...")
+
+    # Map signal to numeric values
     target_map = {"LONG": 1, "SHORT": -1, "HOLD": 0}
-    df["signal"] = df["signal"].map(target_map)
+    if "signal" not in data.columns:
+        raise ValueError("The 'signal' column is missing from the dataset.")
     
-    # Dropping irrelevant columns
-    X = df.drop(columns=["timestamp", "signal"])
-    y = df["signal"]
-    
+    data["signal"] = data["signal"].map(target_map)
+
+    # Drop irrelevant columns
+    X = data.drop(columns=["timestamp", "signal"])
+    y = data["signal"]
+
+    print(f"Data preprocessing complete. Features: {X.columns.tolist()}")
     return X, y
+
 
 def train_model(X_train, y_train):
     """
-    Train a Random Forest model.
+    Train a Random Forest classifier on the training data.
     """
-    print("Training Random Forest model...")
+    print("Training model...")
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
+    print("Model training complete.")
     return model
 
-def save_model(model, output_path):
+
+def evaluate_model(model, X_val, y_val):
     """
-    Save the trained model to the output directory.
+    Evaluate the trained model on validation data.
     """
-    print(f"Saving model to {output_path}")
-    os.makedirs(output_path, exist_ok=True)
-    model_path = os.path.join(output_path, "model.joblib")
+    print("Evaluating model...")
+    y_pred = model.predict(X_val)
+    accuracy = accuracy_score(y_val, y_pred)
+    print("Model evaluation complete.")
+    print("Accuracy:", accuracy)
+    print("Classification Report:")
+    print(classification_report(y_val, y_pred))
+
+
+def save_model(model, model_dir):
+    """
+    Save the trained model to the specified directory.
+    """
+    print(f"Saving model to {model_dir}")
+    os.makedirs(model_dir, exist_ok=True)
+    model_path = os.path.join(model_dir, "model.joblib")
     joblib.dump(model, model_path)
+    print(f"Model saved at {model_path}")
+
 
 def main():
     """
-    Main training script.
+    Main function for training the model.
     """
-    # Parsing arguments
+    # Parse input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train", type=str, required=True, help="Path to training data")
-    parser.add_argument("--model_dir", type=str, required=True, help="Path to save the model")
+    parser.add_argument("--train", type=str, required=True, help="Path to the training data")
+    parser.add_argument("--model_dir", type=str, required=True, help="Path to save the trained model")
     args = parser.parse_args()
-    
-    # Load and preprocess data
-    df = load_data(args.train)
-    X, y = preprocess_data(df)
-    
+
+    # Load data
+    train_data_path = os.path.join("/opt/ml/input/data/train", args.train)
+    data = load_data(train_data_path)
+
+    # Preprocess data
+    X, y = preprocess_data(data)
+
     # Split data into training and validation sets
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-    
+
     # Train the model
     model = train_model(X_train, y_train)
-    
+
     # Evaluate the model
-    print("Evaluating model on validation data...")
-    y_pred = model.predict(X_val)
-    print(classification_report(y_val, y_pred))
-    
-    # Save the model
+    evaluate_model(model, X_val, y_val)
+
+    # Save the trained model
     save_model(model, args.model_dir)
+
 
 if __name__ == "__main__":
     main()
